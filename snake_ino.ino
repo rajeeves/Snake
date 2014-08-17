@@ -20,11 +20,11 @@
 #define XPOT A0
 #define YPOT A1
 #define GETX(x) (x>>4)
-#define GETY(x) (x & B1111)
+#define GETY(x) (x & B00001111)
 #define DEBUG
 
 Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
-byte apple;
+byte apple = 0;
 
 static const uint8_t PROGMEM
   frown_bmp[] =
@@ -60,6 +60,16 @@ public:
     Serial.print("\n");
   }
 };
+
+void newApple(SnakeList<byte>& list){
+  byte rand;
+  do{
+    rand = (byte) random(8);
+    rand <<= 4;
+    rand += (byte) random(8);
+  } while (list.search(rand));
+  apple = rand;
+}
 
 class Snake {
 public:
@@ -112,7 +122,7 @@ public:
       list.pop();
     }
     else {
-      newApple();
+      newApple(this->list);
     }
 
     if (outOfBounds){
@@ -159,6 +169,7 @@ void setup(){
   matrix.begin(0x70);
   Serial.begin(9600);
   randomSeed(analogRead(3));
+  apple = B01000011;
 }
 
 void loop(){
@@ -190,14 +201,6 @@ void loop(){
   #endif
 }
 
-void newApple(){
-  byte rand;
-  do{
-    rand = random(64);
-    rand = (rand%8)<<4 + (rand/8);
-  } while (snake.getList().search(rand));
-  apple = rand;
-}
 
 void gameOver(){
   matrix.clear();
