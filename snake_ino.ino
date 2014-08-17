@@ -12,11 +12,14 @@
 
 #include <iostream>
 
+#include <EEPROM.h>
+
 #define UP 0
 #define RIGHT 1
 #define DOWN 2
 #define LEFT 3
 #define THRESHOLD 256
+#define SELECT 2
 #define XPOT A0
 #define YPOT A1
 #define GETX(x) (x>>4)
@@ -25,6 +28,8 @@
 
 Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
 byte apple = 0;
+volatile byte brightness = 4;
+boolean pause = false;
 
 static const uint8_t PROGMEM
   frown_bmp[] =
@@ -169,36 +174,66 @@ void setup(){
   matrix.begin(0x70);
   Serial.begin(9600);
   randomSeed(analogRead(3));
-  apple = B01000011;
+  newApple(snake.getList());
+  matrix.setTextColor(LED_OFF,LED_ON);
+  pinMode(SELECT, INPUT_PULLUP);
+  attachInterrupt(0,flipPause,FALLING);
+  //brightness = max(min(EEPROM.read(0),8),1);
+  matrix.setBrightness(brightness);
 }
 
 void loop(){
   matrix.clear();
-  snake.draw();
-  matrix.drawPixel(GETX(apple),GETY(apple),LED_ON);
-  matrix.writeDisplay();
-  unsigned long start = millis();
-  byte newDir = snake.getDir();
-  while (millis() - start < 1000){
-    int x = analogRead(XPOT), y = analogRead(YPOT);
-
-    if (x > 511 + THRESHOLD)
-      newDir = RIGHT;
-    else if (x < 511 - THRESHOLD)
-      newDir = LEFT;
-    else if (y > 511 + THRESHOLD)
-      newDir = UP;
-    else if (y < 511 - THRESHOLD)
-      newDir = DOWN;
-
-    if (snake.getDir() - newDir == 2 || newDir - snake.getDir() == 2) //force snake not to go back on itself
-      newDir = snake.getDir();
+  if (pause){
+    matrix.drawChar(0,0,brightness + 48,LED_ON,LED_OFF,1);
+    matrix.writeDisplay();
+    unsigned long start = millis();
+    signed char newbright = 0;
+    while (millis() - start < 500){
+      int y = analogRead(YPOT);
+      if (y > 511 + THRESHOLD)
+        newbright = 1;
+      else if ( y < 511 - THRESHOLD)
+        newbright = -1;
+    }
+    if (newbright != 0){
+      brightness += newbright;
+      brightness = max(min(brightness,8),1);
+      matrix.setBrightness(2*brightness-1);
+    //  EEPROM.write(0,brightness);
+    }
   }
-  snake.changeDir(newDir);
-  snake.makeMove();
-  #ifdef DEBUG
-  Serial.print("\n\n");
-  #endif
+  else{
+    snake.draw();
+    matrix.drawPixel(GETX(apple),GETY(apple),LED_ON);
+    matrix.writeDisplay();
+    unsigned long start = millis();
+    byte newDir = snake.getDir();
+    while (millis() - start < 1000){
+      int x = analogRead(XPOT), y = analogRead(YPOT);
+
+      if (x > 511 + THRESHOLD)
+        newDir = RIGHT;
+      else if (x < 511 - THRESHOLD)
+        newDir = LEFT;
+      else if (y > 511 + THRESHOLD)
+        newDir = UP;
+      else if (y < 511 - THRESHOLD)
+        newDir = DOWN;
+
+      if (snake.getDir() - newDir == 2 || newDir - snake.getDir() == 2) //force snake not to go back on itself
+        newDir = snake.getDir();
+    }
+    snake.changeDir(newDir);
+    snake.makeMove();
+    #ifdef DEBUG
+    Serial.print("\n\n");
+    #endif
+  }
+}
+
+void flipPause(){
+  pause ^= true;
 }
 
 
